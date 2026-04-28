@@ -1,8 +1,17 @@
 
 const API = "https://servidor-dashboard-race-low-poly.onrender.com";
 
+let adminToken = localStorage.getItem("adminToken") || "";
+
 function apiUrl(route) {
   return API + route;
+}
+
+function adminHeaders() {
+  return {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + adminToken
+  };
 }
 
 let adminToken = localStorage.getItem("adminToken") || "";
@@ -18,16 +27,21 @@ async function adminLogin() {
   const username = document.getElementById("adminUser").value.trim();
   const password = document.getElementById("adminPass").value;
 
-  const res = await fetch(apiUrl("/admin/login", {
+  const res = await fetch(apiUrl("/admin/login"), {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ username, password })
-  }));
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      username,
+      password
+    })
+  });
 
   const data = await res.json();
 
   if (!res.ok) {
-    document.getElementById("loginStatus").innerText = data.error;
+    document.getElementById("loginStatus").innerText = data.error || "Erro no login admin.";
     return;
   }
 

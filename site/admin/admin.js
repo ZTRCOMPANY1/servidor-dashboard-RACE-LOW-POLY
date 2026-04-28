@@ -1,4 +1,3 @@
-
 const API = "https://servidor-dashboard-race-low-poly.onrender.com";
 
 let adminToken = localStorage.getItem("adminToken") || "";
@@ -23,10 +22,7 @@ async function adminLogin() {
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      username,
-      password
-    })
+    body: JSON.stringify({ username, password })
   });
 
   const data = await res.json();
@@ -48,17 +44,22 @@ async function adminLogin() {
 async function loadAdminData() {
   if (!adminToken) return;
 
-  const res = await fetch(apiUrl("/admin/data", {
+  const res = await fetch(apiUrl("/admin/data"), {
+    method: "GET",
     headers: adminHeaders()
-  }));
-
-  if (!res.ok) {
-    adminToken = "";
-    localStorage.removeItem("adminToken");
-    return;
-  }
+  });
 
   const data = await res.json();
+
+  if (!res.ok) {
+    console.log(data);
+    adminToken = "";
+    localStorage.removeItem("adminToken");
+    document.getElementById("loginCard").style.display = "block";
+    document.getElementById("adminPanel").style.display = "none";
+    document.getElementById("loginStatus").innerText = data.error || "Admin não autorizado.";
+    return;
+  }
 
   renderBadges(data.badges);
   renderEvents(data.events);
@@ -132,11 +133,11 @@ async function createBadge() {
   const icon = document.getElementById("badgeIcon").value.trim();
   const description = document.getElementById("badgeDesc").value.trim();
 
-  const res = await fetch(apiUrl("/admin/badges", {
+  const res = await fetch(apiUrl("/admin/badges"), {
     method: "POST",
     headers: adminHeaders(),
     body: JSON.stringify({ badgeId, name, icon, description })
-  }));
+  });
 
   const data = await res.json();
   document.getElementById("badgeStatus").innerText = data.message || data.error;
@@ -160,7 +161,7 @@ async function createGameEvent() {
   const rewardBadge = document.getElementById("rewardBadge").value;
   const active = document.getElementById("eventActive").checked;
 
-  const res = await fetch(apiUrl("/admin/events", {
+  const res = await fetch(apiUrl("/admin/events"), {
     method: "POST",
     headers: adminHeaders(),
     body: JSON.stringify({
@@ -173,7 +174,7 @@ async function createGameEvent() {
       active,
       durationDays
     })
-  }));
+  });
 
   const data = await res.json();
   document.getElementById("eventStatus").innerText = data.message || data.error;
@@ -183,15 +184,16 @@ async function createGameEvent() {
     document.getElementById("eventTitle").value = "";
     document.getElementById("eventDesc").value = "";
     document.getElementById("requirementValue").value = "";
+    document.getElementById("durationDays").value = "";
     loadAdminData();
   }
 }
 
 async function toggleEvent(eventId) {
-  await fetch(apiUrl("/admin/events/" + encodeURIComponent(eventId) + "/toggle", {
+  await fetch(apiUrl("/admin/events/" + encodeURIComponent(eventId) + "/toggle"), {
     method: "PATCH",
     headers: adminHeaders()
-  }));
+  });
 
   loadAdminData();
 }
@@ -199,10 +201,10 @@ async function toggleEvent(eventId) {
 async function deleteEvent(eventId) {
   if (!confirm("Excluir esse evento?")) return;
 
-  await fetch(apiUrl("/admin/events/" + encodeURIComponent(eventId), {
+  await fetch(apiUrl("/admin/events/" + encodeURIComponent(eventId)), {
     method: "DELETE",
     headers: adminHeaders()
-  }));
+  });
 
   loadAdminData();
 }
@@ -210,10 +212,10 @@ async function deleteEvent(eventId) {
 async function deleteBadge(badgeId) {
   if (!confirm("Excluir essa insígnia?")) return;
 
-  await fetch(apiUrl("/admin/badges/" + encodeURIComponent(badgeId), {
+  await fetch(apiUrl("/admin/badges/" + encodeURIComponent(badgeId)), {
     method: "DELETE",
     headers: adminHeaders()
-  }));
+  });
 
   loadAdminData();
 }

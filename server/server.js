@@ -1,106 +1,129 @@
 const express = require("express");
 const cors = require("cors");
-const fs = require("fs");
-const path = require("path");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
+const { Pool } = require("pg");
 
 const app = express();
-const PORT = 3000;
-const DATA_FILE = "./dashboard_data.json";
 
-const ADMIN_USER = "admin";
-const ADMIN_PASS = "admin123";
+const PORT = process.env.PORT || 3000;
+const ADMIN_USER = process.env.ADMIN_USER || "admin";
+const ADMIN_PASS = process.env.ADMIN_PASS || "admin123";
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
 
-app.use(cors());
-app.use(express.json());
-app.use(express.static("public"));
-app.use("/admin", express.static("admin"));
+if (!process.env.DATABASE_URL) {
+  console.error("ERRO: DATABASE_URL não configurado.");
+  process.exit(1);
+}
 
-function loadData() {
-  if (!fs.existsSync(DATA_FILE)) {
-    return {
-      players: [],
-      users: [],
-      sessions: [],
-      linkCodes: [],
-      redeemCodes: [],
-      badges: [],
-      events: []
-    };
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
   }
+});
 
-  const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+app.use(cors({
+  origin: CORS_ORIGIN
+}));
 
-  if (!data.players) data.players = [];
-  if (!data.users) data.users = [];
-  if (!data.sessions) data.sessions = [];
-  if (!data.linkCodes) data.linkCodes = [];
-  if (!data.redeemCodes) data.redeemCodes = [];
-  if (!data.badges) data.badges = [];
-  if (!data.events) data.events = [];
+app.use(express.json({ limit: "2mb" }));
 
-  return data;
-}
+async function initDatabase() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      linked_player_name TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
 
-function saveData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-}
+    CREATE TABLE IF NOT EXISTS sessions (
+      id SERIAL PRIMARY KEY,
+      username TEXT NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      expires_at TIMESTAMP NOT NULL
+    );
 
-function findUser(data, username) {
-  return data.users.find(u => u.username.toLowerCase() === username.toLowerCase());
-}
+    CREATE TABLE IF NOT EXISTS players (
+      player_name TEXT PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
 
-function findPlayer(data, playerName) {
-  return data.players.find(p => p.playerName.toLowerCase() === playerName.toLowerCase());
-}
+    CREATE TABLE IF NOT EXISTS link_codes (
+      code TEXT PRIMARY KEY,
+      player_name TEXT NOT NULL,
+      used BOOLEAN DEFAULT FALSE,
+      used_by TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      expires_at TIMESTAMP NOT NULL,
+      used_at TIMESTAMP
+    );
 
-function generateToken() {
-  return crypto.randomBytes(32).toString("hex");
-}
+    CREATE TABLE IF NOT EXISTS badges (
+      badge_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      icon TEXT DEFAULT '🏅',
+      description TEXT DEFAULT ''
+    );
 
-function generateRedeemCode() {
-  return "EVT-" + crypto.randomBytes(3).toString("hex").toUpperCase();
-}
+    CREATE TABLE IF NOT EXISTS events (
+      event_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      requirement_type TEXT NOT NULL,
+      requirement_value FLOAT NOT NULL,
+      reward_badge TEXT NOT NULL,
+      active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT NOW(),
+      expires_at TIMESTAMP
+    );
 
-function getTokenFromRequest(req) {
-  const auth = req.headers.authorization;
-  if (!auth) return null;
-  return auth.replace("Bearer ", "");
-}
+    CREATE TABLE IF NOT EXISTS redeem_codes (
+      code TEXT PRIMARY KEY,
+      player_name TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      reward_badge TEXT NOT NULL,
+      used BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW(),
+      used_at TIMESTAMP
+    );
+  `);
 
-function getSessionUser(data, req) {
-  const token = getTokenFromRequest(req);
-  if (!token) return null;
+  await pool.query(`
+    INSERT INTO badges (badge_id, name, icon, description)
+    VALUES ('BADGE_WIN_10', '10 Vitórias', '🏆', 'Ganhou 10 corridas.')
+    ON CONFLICT (badge_id) DO NOTHING;
+  `);
 
-  const session = data.sessions.find(s => s.token === token);
-  if (!session) return null;
+  await pool.query(`
+    INSERT INTO events (
+      event_id,
+      title,
+      description,
+      requirement_type,
+      requirement_value,
+      reward_badge,
+      active
+    )
+    VALUES (
+      'EVENT_WIN_10',
+      'Desafio das 10 Vitórias',
+      'Ganhe 10 corridas para desbloquear uma insígnia.',
+      'RACES_WON',
+      10,
+      'BADGE_WIN_10',
+      TRUE
+    )
+    ON CONFLICT (event_id) DO NOTHING;
+  `);
 
-  if (new Date(session.expiresAt) < new Date()) return null;
-
-  return findUser(data, session.username);
-}
-
-function requireLogin(req, res, next) {
-  const data = loadData();
-  const user = getSessionUser(data, req);
-
-  if (!user) return res.status(401).json({ error: "Não autorizado" });
-
-  req.user = user;
-  req.data = data;
-  next();
-}
-
-function requireAdmin(req, res, next) {
-  const token = getTokenFromRequest(req);
-
-  if (!token || token !== "ADMIN_TOKEN") {
-    return res.status(401).json({ error: "Admin não autorizado" });
-  }
-
-  req.data = loadData();
-  next();
+  console.log("Banco iniciado com sucesso.");
 }
 
 function createEmptyPlayer(playerName) {
@@ -119,6 +142,40 @@ function createEmptyPlayer(playerName) {
   };
 }
 
+function generateToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function generateLinkCode() {
+  return "LINK-" + crypto.randomBytes(3).toString("hex").toUpperCase();
+}
+
+function generateRedeemCode() {
+  return "EVT-" + crypto.randomBytes(3).toString("hex").toUpperCase();
+}
+
+async function getPlayer(playerName) {
+  const result = await pool.query(
+    "SELECT data FROM players WHERE LOWER(player_name) = LOWER($1)",
+    [playerName]
+  );
+
+  if (result.rows.length === 0) return null;
+  return result.rows[0].data;
+}
+
+async function savePlayer(player) {
+  await pool.query(
+    `
+    INSERT INTO players (player_name, data, updated_at)
+    VALUES ($1, $2, NOW())
+    ON CONFLICT (player_name)
+    DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+    `,
+    [player.playerName, player]
+  );
+}
+
 function getEventCurrentValue(player, type) {
   if (type === "RACES_WON") return player.racesWon || 0;
   if (type === "RACES_PLAYED") return player.racesPlayed || 0;
@@ -129,125 +186,212 @@ function getEventCurrentValue(player, type) {
   return 0;
 }
 
-function hasCompletedEvent(player, event) {
-  return getEventCurrentValue(player, event.requirementType) >= event.requirementValue;
+function isExpired(expiresAt) {
+  if (!expiresAt) return false;
+  return new Date(expiresAt) < new Date();
 }
 
-function isEventExpired(event) {
-  if (!event.expiresAt) return false;
-  return new Date(event.expiresAt) < new Date();
-}
+async function evaluateEventsForPlayer(player) {
+  const eventsResult = await pool.query(
+    "SELECT * FROM events WHERE active = TRUE"
+  );
 
-function evaluateEventsForPlayer(data, player) {
-  data.events.forEach(event => {
-    if (!event.active) return;
-    if (isEventExpired(event)) return;
-    if (!hasCompletedEvent(player, event)) return;
+  for (const event of eventsResult.rows) {
+    if (isExpired(event.expires_at)) continue;
+
+    const current = getEventCurrentValue(player, event.requirement_type);
+
+    if (current < Number(event.requirement_value)) continue;
 
     if (!player.badges) player.badges = [];
 
-    if (player.badges.includes(event.rewardBadge)) return;
+    if (player.badges.includes(event.reward_badge)) continue;
 
-    const existingCode = data.redeemCodes.find(c =>
-      c.playerName.toLowerCase() === player.playerName.toLowerCase() &&
-      c.eventId === event.eventId &&
-      c.used === false
+    const existing = await pool.query(
+      `
+      SELECT code FROM redeem_codes
+      WHERE LOWER(player_name) = LOWER($1)
+      AND event_id = $2
+      AND used = FALSE
+      `,
+      [player.playerName, event.event_id]
     );
 
-    if (existingCode) return;
+    if (existing.rows.length > 0) continue;
 
-    data.redeemCodes.push({
-      code: generateRedeemCode(),
-      playerName: player.playerName,
-      eventId: event.eventId,
-      title: event.title,
-      description: event.description,
-      rewardBadge: event.rewardBadge,
-      used: false,
-      createdAt: new Date().toISOString()
-    });
-  });
+    await pool.query(
+      `
+      INSERT INTO redeem_codes (
+        code,
+        player_name,
+        event_id,
+        title,
+        description,
+        reward_badge,
+        used
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+      `,
+      [
+        generateRedeemCode(),
+        player.playerName,
+        event.event_id,
+        event.title,
+        event.description,
+        event.reward_badge
+      ]
+    );
+  }
+}
+
+async function requireLogin(req, res, next) {
+  try {
+    const auth = req.headers.authorization;
+    if (!auth) return res.status(401).json({ error: "Não autorizado" });
+
+    const token = auth.replace("Bearer ", "");
+
+    const result = await pool.query(
+      `
+      SELECT users.username, users.linked_player_name
+      FROM sessions
+      JOIN users ON users.username = sessions.username
+      WHERE sessions.token = $1
+      AND sessions.expires_at > NOW()
+      `,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Não autorizado" });
+    }
+
+    req.user = {
+      username: result.rows[0].username,
+      linkedPlayerName: result.rows[0].linked_player_name
+    };
+
+    req.token = token;
+
+    next();
+  } catch (err) {
+    res.status(500).json({ error: "Erro interno" });
+  }
+}
+
+function requireAdmin(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: "Admin não autorizado" });
+
+  const token = auth.replace("Bearer ", "");
+
+  if (token !== "ADMIN_TOKEN") {
+    return res.status(401).json({ error: "Admin não autorizado" });
+  }
+
+  next();
 }
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-app.get("/admin", (req, res) => {
-  res.sendFile(path.join(__dirname, "admin", "index.html"));
+  res.json({
+    status: "API ONLINE",
+    message: "Servidor do Racing Game Hub funcionando"
+  });
 });
 
 // AUTH
 
 app.post("/auth/register", async (req, res) => {
-  const { username, password } = req.body;
+  try {
+    const { username, password } = req.body;
 
-  if (!username || !password) return res.status(400).json({ error: "Usuário e senha são obrigatórios" });
-  if (username.length < 3) return res.status(400).json({ error: "Usuário precisa ter pelo menos 3 caracteres" });
-  if (password.length < 6) return res.status(400).json({ error: "Senha precisa ter pelo menos 6 caracteres" });
+    if (!username || !password) {
+      return res.status(400).json({ error: "Usuário e senha são obrigatórios" });
+    }
 
-  const data = loadData();
+    if (username.length < 3) {
+      return res.status(400).json({ error: "Usuário precisa ter pelo menos 3 caracteres" });
+    }
 
-  if (findUser(data, username)) return res.status(400).json({ error: "Esse usuário já existe" });
+    if (password.length < 6) {
+      return res.status(400).json({ error: "Senha precisa ter pelo menos 6 caracteres" });
+    }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
 
-  data.users.push({
-    username,
-    passwordHash,
-    linkedPlayerName: null,
-    createdAt: new Date().toISOString()
-  });
+    await pool.query(
+      `
+      INSERT INTO users (username, password_hash)
+      VALUES ($1, $2)
+      `,
+      [username, passwordHash]
+    );
 
-  saveData(data);
+    res.json({
+      success: true,
+      message: "Conta criada com sucesso"
+    });
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(400).json({ error: "Esse usuário já existe" });
+    }
 
-  res.json({ success: true, message: "Conta criada com sucesso" });
+    res.status(500).json({ error: "Erro ao criar conta" });
+  }
 });
 
 app.post("/auth/login", async (req, res) => {
-  const { username, password } = req.body;
+  try {
+    const { username, password } = req.body;
 
-  const data = loadData();
-  const user = findUser(data, username || "");
+    const result = await pool.query(
+      "SELECT * FROM users WHERE LOWER(username) = LOWER($1)",
+      [username || ""]
+    );
 
-  if (!user) return res.status(401).json({ error: "Usuário ou senha inválidos" });
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Usuário ou senha inválidos" });
+    }
 
-  const validPassword = await bcrypt.compare(password || "", user.passwordHash);
+    const user = result.rows[0];
 
-  if (!validPassword) return res.status(401).json({ error: "Usuário ou senha inválidos" });
+    const validPassword = await bcrypt.compare(password || "", user.password_hash);
 
-  const token = generateToken();
+    if (!validPassword) {
+      return res.status(401).json({ error: "Usuário ou senha inválidos" });
+    }
 
-  data.sessions.push({
-    username: user.username,
-    token,
-    createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString()
-  });
+    const token = generateToken();
 
-  saveData(data);
+    await pool.query(
+      `
+      INSERT INTO sessions (username, token, expires_at)
+      VALUES ($1, $2, NOW() + INTERVAL '7 days')
+      `,
+      [user.username, token]
+    );
+
+    res.json({
+      success: true,
+      token,
+      username: user.username,
+      linkedPlayerName: user.linked_player_name
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao fazer login" });
+  }
+});
+
+app.post("/auth/logout", requireLogin, async (req, res) => {
+  await pool.query("DELETE FROM sessions WHERE token = $1", [req.token]);
 
   res.json({
     success: true,
-    token,
-    username: user.username,
-    linkedPlayerName: user.linkedPlayerName
+    message: "Logout feito"
   });
 });
 
-app.post("/auth/logout", requireLogin, (req, res) => {
-  const token = getTokenFromRequest(req);
-  const data = req.data;
-
-  data.sessions = data.sessions.filter(s => s.token !== token);
-  saveData(data);
-
-  res.json({ success: true, message: "Logout feito" });
-});
-
-app.get("/profile/me", requireLogin, (req, res) => {
-  const data = req.data;
-
+app.get("/profile/me", requireLogin, async (req, res) => {
   if (!req.user.linkedPlayerName) {
     return res.json({
       username: req.user.username,
@@ -256,224 +400,305 @@ app.get("/profile/me", requireLogin, (req, res) => {
     });
   }
 
-  const player = findPlayer(data, req.user.linkedPlayerName);
+  const player = await getPlayer(req.user.linkedPlayerName);
 
   res.json({
     username: req.user.username,
     linkedPlayerName: req.user.linkedPlayerName,
-    player: player || null
+    player
   });
 });
 
-// LINK
+// LINK CONTA
 
-app.post("/link/create", (req, res) => {
-  const { playerName } = req.body;
+app.post("/link/create", async (req, res) => {
+  try {
+    const { playerName } = req.body;
 
-  if (!playerName) return res.status(400).json({ error: "playerName obrigatório" });
+    if (!playerName) {
+      return res.status(400).json({ error: "playerName obrigatório" });
+    }
 
-  const data = loadData();
+    let player = await getPlayer(playerName);
 
-  let player = findPlayer(data, playerName);
+    if (!player) {
+      player = createEmptyPlayer(playerName);
+      await savePlayer(player);
+    }
 
-  if (!player) {
-    player = createEmptyPlayer(playerName);
-    data.players.push(player);
+    await pool.query(
+      `
+      DELETE FROM link_codes
+      WHERE LOWER(player_name) = LOWER($1)
+      AND used = FALSE
+      `,
+      [playerName]
+    );
+
+    const code = generateLinkCode();
+
+    await pool.query(
+      `
+      INSERT INTO link_codes (code, player_name, expires_at)
+      VALUES ($1, $2, NOW() + INTERVAL '10 minutes')
+      `,
+      [code, playerName]
+    );
+
+    res.json({
+      success: true,
+      code
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao gerar código" });
   }
-
-  data.linkCodes = data.linkCodes.filter(c =>
-    !(c.playerName.toLowerCase() === playerName.toLowerCase() && c.used === false)
-  );
-
-  const code = "LINK-" + crypto.randomBytes(3).toString("hex").toUpperCase();
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 10).toISOString();
-
-  data.linkCodes.push({
-    code,
-    playerName,
-    used: false,
-    createdAt: new Date().toISOString(),
-    expiresAt
-  });
-
-  saveData(data);
-
-  res.json({ success: true, code, expiresAt });
 });
 
-app.post("/link/confirm", requireLogin, (req, res) => {
-  const { code } = req.body;
+app.post("/link/confirm", requireLogin, async (req, res) => {
+  try {
+    const { code } = req.body;
 
-  if (!code) return res.status(400).json({ error: "Código obrigatório" });
+    if (!code) {
+      return res.status(400).json({ error: "Código obrigatório" });
+    }
 
-  const data = req.data;
+    const result = await pool.query(
+      `
+      SELECT * FROM link_codes
+      WHERE UPPER(code) = UPPER($1)
+      `,
+      [code]
+    );
 
-  const link = data.linkCodes.find(c => c.code.toUpperCase() === code.toUpperCase());
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Código inválido" });
+    }
 
-  if (!link) return res.status(404).json({ error: "Código inválido" });
-  if (link.used) return res.status(400).json({ error: "Código já utilizado" });
-  if (new Date(link.expiresAt) < new Date()) return res.status(400).json({ error: "Código expirado" });
+    const link = result.rows[0];
 
-  const player = findPlayer(data, link.playerName);
+    if (link.used) {
+      return res.status(400).json({ error: "Código já utilizado" });
+    }
 
-  if (!player) return res.status(404).json({ error: "Jogador não encontrado" });
+    if (new Date(link.expires_at) < new Date()) {
+      return res.status(400).json({ error: "Código expirado" });
+    }
 
-  const alreadyLinked = data.users.find(
-    u => u.linkedPlayerName && u.linkedPlayerName.toLowerCase() === link.playerName.toLowerCase()
-  );
+    const already = await pool.query(
+      `
+      SELECT username FROM users
+      WHERE LOWER(linked_player_name) = LOWER($1)
+      AND username <> $2
+      `,
+      [link.player_name, req.user.username]
+    );
 
-  if (alreadyLinked && alreadyLinked.username !== req.user.username) {
-    return res.status(403).json({ error: "Esse jogador já está vinculado a outra conta" });
+    if (already.rows.length > 0) {
+      return res.status(403).json({ error: "Esse jogador já está vinculado a outra conta" });
+    }
+
+    await pool.query(
+      "UPDATE users SET linked_player_name = $1 WHERE username = $2",
+      [link.player_name, req.user.username]
+    );
+
+    await pool.query(
+      `
+      UPDATE link_codes
+      SET used = TRUE, used_by = $1, used_at = NOW()
+      WHERE code = $2
+      `,
+      [req.user.username, link.code]
+    );
+
+    res.json({
+      success: true,
+      message: "Conta vinculada com sucesso",
+      linkedPlayerName: link.player_name
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao vincular conta" });
   }
-
-  req.user.linkedPlayerName = link.playerName;
-
-  link.used = true;
-  link.usedAt = new Date().toISOString();
-  link.usedBy = req.user.username;
-
-  saveData(data);
-
-  res.json({
-    success: true,
-    message: "Conta vinculada com sucesso",
-    linkedPlayerName: link.playerName
-  });
 });
 
 // UNITY UPDATE
 
-app.post("/update-player", (req, res) => {
-  const player = req.body;
+app.post("/update-player", async (req, res) => {
+  try {
+    const player = req.body;
 
-  if (!player.playerName) return res.status(400).json({ error: "playerName obrigatório" });
+    if (!player.playerName) {
+      return res.status(400).json({ error: "playerName obrigatório" });
+    }
 
-  const data = loadData();
+    let existing = await getPlayer(player.playerName);
 
-  let existing = findPlayer(data, player.playerName);
+    if (!existing) {
+      existing = createEmptyPlayer(player.playerName);
+    }
 
-  if (!existing) {
-    existing = createEmptyPlayer(player.playerName);
-    data.players.push(existing);
+    existing.playerName = player.playerName;
+    existing.level = player.level || 1;
+    existing.rank = player.rank || "Novato";
+    existing.xp = player.xp || 0;
+    existing.totalPlayTime = player.totalPlayTime || 0;
+    existing.distanceDrivenKm = player.distanceDrivenKm || existing.distanceDrivenKm || 0;
+    existing.racesWon = player.racesWon || 0;
+    existing.racesPlayed = player.racesPlayed || 0;
+    existing.achievements = player.achievements || existing.achievements || [];
+    existing.badges = existing.badges || [];
+    existing.matchHistory = player.matchHistory || [];
+
+    await savePlayer(existing);
+    await evaluateEventsForPlayer(existing);
+
+    res.json({
+      success: true,
+      message: "Player atualizado"
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao atualizar player" });
   }
-
-  existing.playerName = player.playerName;
-  existing.level = player.level || 1;
-  existing.rank = player.rank || "Novato";
-  existing.xp = player.xp || 0;
-  existing.totalPlayTime = player.totalPlayTime || 0;
-  existing.distanceDrivenKm = player.distanceDrivenKm || existing.distanceDrivenKm || 0;
-  existing.racesWon = player.racesWon || 0;
-  existing.racesPlayed = player.racesPlayed || 0;
-  existing.achievements = player.achievements || existing.achievements || [];
-  existing.badges = existing.badges || [];
-  existing.matchHistory = player.matchHistory || [];
-
-  evaluateEventsForPlayer(data, existing);
-
-  saveData(data);
-
-  res.json({ success: true, message: "Player atualizado" });
 });
 
-// EVENTOS PARA O JOGO
+// EVENTOS NO JOGO
 
-app.get("/events/progress/:playerName", (req, res) => {
-  const data = loadData();
-  const playerName = req.params.playerName;
+app.get("/events/progress/:playerName", async (req, res) => {
+  try {
+    const player = await getPlayer(req.params.playerName);
 
-  const player = findPlayer(data, playerName);
+    if (!player) {
+      return res.status(404).json({ error: "Jogador não encontrado" });
+    }
 
-  if (!player) {
-    return res.status(404).json({ error: "Jogador não encontrado" });
-  }
+    const events = await pool.query(
+      "SELECT * FROM events WHERE active = TRUE"
+    );
 
-  const result = data.events
-    .filter(event => event.active)
-    .filter(event => !isEventExpired(event))
-    .filter(event => !hasCompletedEvent(player, event))
-    .map(event => {
-      const current = getEventCurrentValue(player, event.requirementType);
+    const result = [];
 
-      return {
-        eventId: event.eventId,
+    for (const event of events.rows) {
+      if (isExpired(event.expires_at)) continue;
+
+      const currentValue = getEventCurrentValue(player, event.requirement_type);
+      const completed = currentValue >= Number(event.requirement_value);
+
+      if (completed) continue;
+
+      result.push({
+        eventId: event.event_id,
         title: event.title,
         description: event.description,
-        requirementType: event.requirementType,
-        currentValue: current,
-        requirementValue: event.requirementValue,
-        rewardBadge: event.rewardBadge,
-        expiresAt: event.expiresAt || null,
-        completed: false
-      };
-    });
+        requirementType: event.requirement_type,
+        currentValue,
+        requirementValue: Number(event.requirement_value),
+        rewardBadge: event.reward_badge,
+        expiresAt: event.expires_at,
+        completed
+      });
+    }
 
-  res.json(result);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao carregar eventos" });
+  }
 });
 
 // REWARDS
 
-app.get("/rewards/available", requireLogin, (req, res) => {
-  const data = req.data;
-
+app.get("/rewards/available", requireLogin, async (req, res) => {
   if (!req.user.linkedPlayerName) {
     return res.status(400).json({ error: "Conta não vinculada ao jogo" });
   }
 
-  const codes = data.redeemCodes.filter(c =>
-    c.playerName.toLowerCase() === req.user.linkedPlayerName.toLowerCase() &&
-    c.used === false
+  const result = await pool.query(
+    `
+    SELECT * FROM redeem_codes
+    WHERE LOWER(player_name) = LOWER($1)
+    AND used = FALSE
+    `,
+    [req.user.linkedPlayerName]
   );
 
-  res.json(codes);
+  res.json(result.rows.map(r => ({
+    code: r.code,
+    playerName: r.player_name,
+    eventId: r.event_id,
+    title: r.title,
+    description: r.description,
+    rewardBadge: r.reward_badge,
+    used: r.used,
+    createdAt: r.created_at
+  })));
 });
 
-app.post("/rewards/redeem", requireLogin, (req, res) => {
-  const { code } = req.body;
-  const data = req.data;
+app.post("/rewards/redeem", requireLogin, async (req, res) => {
+  try {
+    const { code } = req.body;
 
-  if (!code) return res.status(400).json({ error: "Código obrigatório" });
+    if (!code) {
+      return res.status(400).json({ error: "Código obrigatório" });
+    }
 
-  if (!req.user.linkedPlayerName) {
-    return res.status(400).json({ error: "Conta não vinculada ao jogo" });
+    if (!req.user.linkedPlayerName) {
+      return res.status(400).json({ error: "Conta não vinculada ao jogo" });
+    }
+
+    const result = await pool.query(
+      "SELECT * FROM redeem_codes WHERE UPPER(code) = UPPER($1)",
+      [code]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Código inválido" });
+    }
+
+    const redeem = result.rows[0];
+
+    if (redeem.used) {
+      return res.status(400).json({ error: "Código já utilizado" });
+    }
+
+    if (redeem.player_name.toLowerCase() !== req.user.linkedPlayerName.toLowerCase()) {
+      return res.status(403).json({ error: "Esse código não pertence à sua conta" });
+    }
+
+    const player = await getPlayer(req.user.linkedPlayerName);
+
+    if (!player.badges) player.badges = [];
+
+    if (!player.badges.includes(redeem.reward_badge)) {
+      player.badges.push(redeem.reward_badge);
+    }
+
+    await savePlayer(player);
+
+    await pool.query(
+      "UPDATE redeem_codes SET used = TRUE, used_at = NOW() WHERE code = $1",
+      [redeem.code]
+    );
+
+    res.json({
+      success: true,
+      message: "Insígnia resgatada com sucesso",
+      badge: redeem.reward_badge
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao resgatar código" });
   }
-
-  const redeem = data.redeemCodes.find(c => c.code.toUpperCase() === code.toUpperCase());
-
-  if (!redeem) return res.status(404).json({ error: "Código inválido" });
-  if (redeem.used) return res.status(400).json({ error: "Código já utilizado" });
-
-  if (redeem.playerName.toLowerCase() !== req.user.linkedPlayerName.toLowerCase()) {
-    return res.status(403).json({ error: "Esse código não pertence à sua conta" });
-  }
-
-  const player = findPlayer(data, req.user.linkedPlayerName);
-
-  if (!player) return res.status(404).json({ error: "Jogador não encontrado" });
-
-  if (!player.badges) player.badges = [];
-
-  if (!player.badges.includes(redeem.rewardBadge)) {
-    player.badges.push(redeem.rewardBadge);
-  }
-
-  redeem.used = true;
-  redeem.usedAt = new Date().toISOString();
-
-  saveData(data);
-
-  res.json({
-    success: true,
-    message: "Insígnia resgatada com sucesso",
-    badge: redeem.rewardBadge
-  });
 });
 
-// BADGES PUBLIC
+// BADGES
 
-app.get("/badges", (req, res) => {
-  const data = loadData();
-  res.json(data.badges);
+app.get("/badges", async (req, res) => {
+  const result = await pool.query("SELECT * FROM badges ORDER BY name ASC");
+
+  res.json(result.rows.map(b => ({
+    badgeId: b.badge_id,
+    name: b.name,
+    icon: b.icon,
+    description: b.description
+  })));
 });
 
 // ADMIN
@@ -482,139 +707,180 @@ app.post("/admin/login", (req, res) => {
   const { username, password } = req.body;
 
   if (username === ADMIN_USER && password === ADMIN_PASS) {
-    return res.json({ success: true, token: "ADMIN_TOKEN" });
+    return res.json({
+      success: true,
+      token: "ADMIN_TOKEN"
+    });
   }
 
   res.status(401).json({ error: "Admin inválido" });
 });
 
-app.get("/admin/data", requireAdmin, (req, res) => {
+app.get("/admin/data", requireAdmin, async (req, res) => {
+  const badges = await pool.query("SELECT * FROM badges ORDER BY name ASC");
+  const events = await pool.query("SELECT * FROM events ORDER BY created_at DESC");
+
   res.json({
-    badges: req.data.badges,
-    events: req.data.events
+    badges: badges.rows.map(b => ({
+      badgeId: b.badge_id,
+      name: b.name,
+      icon: b.icon,
+      description: b.description
+    })),
+    events: events.rows.map(e => ({
+      eventId: e.event_id,
+      title: e.title,
+      description: e.description,
+      requirementType: e.requirement_type,
+      requirementValue: Number(e.requirement_value),
+      rewardBadge: e.reward_badge,
+      active: e.active,
+      expiresAt: e.expires_at
+    }))
   });
 });
 
-app.post("/admin/badges", requireAdmin, (req, res) => {
-  const { badgeId, name, icon, description } = req.body;
-  const data = req.data;
+app.post("/admin/badges", requireAdmin, async (req, res) => {
+  try {
+    const { badgeId, name, icon, description } = req.body;
 
-  if (!badgeId || !name) {
-    return res.status(400).json({ error: "badgeId e name são obrigatórios" });
+    if (!badgeId || !name) {
+      return res.status(400).json({ error: "badgeId e name são obrigatórios" });
+    }
+
+    await pool.query(
+      `
+      INSERT INTO badges (badge_id, name, icon, description)
+      VALUES ($1, $2, $3, $4)
+      `,
+      [badgeId, name, icon || "🏅", description || ""]
+    );
+
+    res.json({
+      success: true,
+      message: "Insígnia criada"
+    });
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(400).json({ error: "Essa insígnia já existe" });
+    }
+
+    res.status(500).json({ error: "Erro ao criar insígnia" });
   }
+});
 
-  const exists = data.badges.find(b => b.badgeId === badgeId);
+app.delete("/admin/badges/:badgeId", requireAdmin, async (req, res) => {
+  await pool.query(
+    "DELETE FROM badges WHERE badge_id = $1",
+    [req.params.badgeId]
+  );
 
-  if (exists) return res.status(400).json({ error: "Essa insígnia já existe" });
-
-  data.badges.push({
-    badgeId,
-    name,
-    icon: icon || "�",
-    description: description || ""
+  res.json({
+    success: true,
+    message: "Insígnia excluída"
   });
-
-  saveData(data);
-
-  res.json({ success: true, message: "Insígnia criada" });
 });
 
-app.delete("/admin/badges/:badgeId", requireAdmin, (req, res) => {
-  const data = req.data;
-  const badgeId = req.params.badgeId;
+app.post("/admin/events", requireAdmin, async (req, res) => {
+  try {
+    const {
+      eventId,
+      title,
+      description,
+      requirementType,
+      requirementValue,
+      rewardBadge,
+      active,
+      durationDays
+    } = req.body;
 
-  data.badges = data.badges.filter(b => b.badgeId !== badgeId);
+    if (!eventId || !title || !requirementType || !requirementValue || !rewardBadge) {
+      return res.status(400).json({ error: "Preencha todos os campos obrigatórios" });
+    }
 
-  saveData(data);
+    let expiresAt = null;
 
-  res.json({ success: true, message: "Insígnia excluída" });
-});
+    if (durationDays && Number(durationDays) > 0) {
+      expiresAt = new Date(Date.now() + Number(durationDays) * 24 * 60 * 60 * 1000);
+    }
 
-app.post("/admin/events", requireAdmin, (req, res) => {
-const {
-  eventId,
-  title,
-  description,
-  requirementType,
-  requirementValue,
-  rewardBadge,
-  active,
-  durationDays
-} = req.body;
+    await pool.query(
+      `
+      INSERT INTO events (
+        event_id,
+        title,
+        description,
+        requirement_type,
+        requirement_value,
+        reward_badge,
+        active,
+        expires_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `,
+      [
+        eventId,
+        title,
+        description || "",
+        requirementType,
+        Number(requirementValue),
+        rewardBadge,
+        active === true,
+        expiresAt
+      ]
+    );
 
-  const data = req.data;
+    res.json({
+      success: true,
+      message: "Evento criado"
+    });
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(400).json({ error: "Esse evento já existe" });
+    }
 
-  if (!eventId || !title || !requirementType || !requirementValue || !rewardBadge) {
-    return res.status(400).json({ error: "Preencha todos os campos obrigatórios" });
+    res.status(500).json({ error: "Erro ao criar evento" });
   }
-
-  const exists = data.events.find(e => e.eventId === eventId);
-
-  if (exists) return res.status(400).json({ error: "Esse evento já existe" });
-
-  const badgeExists = data.badges.find(b => b.badgeId === rewardBadge);
-
-  if (!badgeExists) return res.status(400).json({ error: "A insígnia escolhida não existe" });
-
-let expiresAt = null;
-
-if (durationDays && Number(durationDays) > 0) {
-  expiresAt = new Date(
-    Date.now() + Number(durationDays) * 24 * 60 * 60 * 1000
-  ).toISOString();
-}
-
-data.events.push({
-  eventId,
-  title,
-  description: description || "",
-  requirementType,
-  requirementValue: Number(requirementValue),
-  rewardBadge,
-  active: active === true,
-  durationDays: Number(durationDays) || 0,
-  createdAt: new Date().toISOString(),
-  expiresAt
 });
 
-  saveData(data);
+app.patch("/admin/events/:eventId/toggle", requireAdmin, async (req, res) => {
+  await pool.query(
+    `
+    UPDATE events
+    SET active = NOT active
+    WHERE event_id = $1
+    `,
+    [req.params.eventId]
+  );
 
-  res.json({ success: true, message: "Evento criado" });
+  res.json({
+    success: true,
+    message: "Status do evento alterado"
+  });
 });
 
-app.patch("/admin/events/:eventId/toggle", requireAdmin, (req, res) => {
-  const data = req.data;
-  const eventId = req.params.eventId;
+app.delete("/admin/events/:eventId", requireAdmin, async (req, res) => {
+  await pool.query(
+    "DELETE FROM events WHERE event_id = $1",
+    [req.params.eventId]
+  );
 
-  const event = data.events.find(e => e.eventId === eventId);
-
-  if (!event) return res.status(404).json({ error: "Evento não encontrado" });
-
-  event.active = !event.active;
-
-  saveData(data);
-
-  res.json({ success: true, message: "Status do evento alterado" });
-});
-
-app.delete("/admin/events/:eventId", requireAdmin, (req, res) => {
-  const data = req.data;
-  const eventId = req.params.eventId;
-
-  data.events = data.events.filter(e => e.eventId !== eventId);
-
-  saveData(data);
-
-  res.json({ success: true, message: "Evento excluído" });
+  res.json({
+    success: true,
+    message: "Evento excluído"
+  });
 });
 
 // DASHBOARDS
 
-app.get("/dashboard/best-times", (req, res) => {
-  const data = loadData();
+app.get("/dashboard/best-times", async (req, res) => {
+  const players = await pool.query("SELECT data FROM players");
+
   const best = {};
 
-  data.players.forEach(player => {
+  players.rows.forEach(row => {
+    const player = row.data;
+
     (player.matchHistory || []).forEach(entry => {
       if (!entry.trackName) return;
 
@@ -632,11 +898,12 @@ app.get("/dashboard/best-times", (req, res) => {
   res.json(Object.values(best));
 });
 
-app.get("/dashboard/top-level", (req, res) => {
-  const data = loadData();
+app.get("/dashboard/top-level", async (req, res) => {
+  const players = await pool.query("SELECT data FROM players");
 
-  const ranking = data.players
-    .sort((a, b) => b.level - a.level || b.xp - a.xp)
+  const ranking = players.rows
+    .map(r => r.data)
+    .sort((a, b) => (b.level || 0) - (a.level || 0) || (b.xp || 0) - (a.xp || 0))
     .map(p => ({
       playerName: p.playerName,
       level: p.level,
@@ -647,11 +914,12 @@ app.get("/dashboard/top-level", (req, res) => {
   res.json(ranking);
 });
 
-app.get("/dashboard/most-playtime", (req, res) => {
-  const data = loadData();
+app.get("/dashboard/most-playtime", async (req, res) => {
+  const players = await pool.query("SELECT data FROM players");
 
-  const ranking = data.players
-    .sort((a, b) => b.totalPlayTime - a.totalPlayTime)
+  const ranking = players.rows
+    .map(r => r.data)
+    .sort((a, b) => (b.totalPlayTime || 0) - (a.totalPlayTime || 0))
     .map(p => ({
       playerName: p.playerName,
       totalPlayTime: p.totalPlayTime
@@ -660,11 +928,12 @@ app.get("/dashboard/most-playtime", (req, res) => {
   res.json(ranking);
 });
 
-app.get("/dashboard/most-wins", (req, res) => {
-  const data = loadData();
+app.get("/dashboard/most-wins", async (req, res) => {
+  const players = await pool.query("SELECT data FROM players");
 
-  const ranking = data.players
-    .sort((a, b) => b.racesWon - a.racesWon)
+  const ranking = players.rows
+    .map(r => r.data)
+    .sort((a, b) => (b.racesWon || 0) - (a.racesWon || 0))
     .map(p => ({
       playerName: p.playerName,
       racesWon: p.racesWon,
@@ -674,8 +943,13 @@ app.get("/dashboard/most-wins", (req, res) => {
   res.json(ranking);
 });
 
-const port = process.env.PORT || 3000;
-
-app.listen(port, () => {
-  console.log("Servidor online na porta " + port);
-});
+initDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log("Servidor online na porta " + PORT);
+    });
+  })
+  .catch(err => {
+    console.error("Erro ao iniciar banco:", err);
+    process.exit(1);
+  });

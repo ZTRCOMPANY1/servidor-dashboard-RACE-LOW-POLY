@@ -1,4 +1,4 @@
-const API = "https://servidor-dashboard-race-low-poly.onrender.com/";
+const API = "https://servidor-dashboard-race-low-poly.onrender.com";
 
 let token = localStorage.getItem("hubToken") || "";
 let badgeList = [];

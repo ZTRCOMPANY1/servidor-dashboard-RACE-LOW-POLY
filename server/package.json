@@ -1,7 +1,6 @@
 {
   "name": "racing-game-hub",
   "version": "1.0.0",
-  "description": "Hub online do jogo de corrida",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

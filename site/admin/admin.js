@@ -1,3 +1,6 @@
+
+const API = "http://servidor-dashboard-race-low-poly-production.up.railway.app/";
+
 let adminToken = localStorage.getItem("adminToken") || "";
 
 function adminHeaders() {
@@ -11,7 +14,7 @@ async function adminLogin() {
   const username = document.getElementById("adminUser").value.trim();
   const password = document.getElementById("adminPass").value;
 
-  const res = await fetch("/admin/login", {
+  const res = await fetch(API + "/admin/login", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({ username, password })
@@ -36,7 +39,7 @@ async function adminLogin() {
 async function loadAdminData() {
   if (!adminToken) return;
 
-  const res = await fetch("/admin/data", {
+  const res = await fetch(API + "/admin/data", {
     headers: adminHeaders()
   });
 
@@ -120,7 +123,7 @@ async function createBadge() {
   const icon = document.getElementById("badgeIcon").value.trim();
   const description = document.getElementById("badgeDesc").value.trim();
 
-  const res = await fetch("/admin/badges", {
+  const res = await fetch(API + "/admin/badges", {
     method: "POST",
     headers: adminHeaders(),
     body: JSON.stringify({ badgeId, name, icon, description })
@@ -148,7 +151,7 @@ async function createGameEvent() {
   const rewardBadge = document.getElementById("rewardBadge").value;
   const active = document.getElementById("eventActive").checked;
 
-  const res = await fetch("/admin/events", {
+  const res = await fetch(API + "/admin/events", {
     method: "POST",
     headers: adminHeaders(),
     body: JSON.stringify({
@@ -176,7 +179,7 @@ async function createGameEvent() {
 }
 
 async function toggleEvent(eventId) {
-  await fetch("/admin/events/" + encodeURIComponent(eventId) + "/toggle", {
+  await fetch(API + "/admin/events/" + encodeURIComponent(eventId) + "/toggle", {
     method: "PATCH",
     headers: adminHeaders()
   });
@@ -187,7 +190,7 @@ async function toggleEvent(eventId) {
 async function deleteEvent(eventId) {
   if (!confirm("Excluir esse evento?")) return;
 
-  await fetch("/admin/events/" + encodeURIComponent(eventId), {
+  await fetch(API + "/admin/events/" + encodeURIComponent(eventId), {
     method: "DELETE",
     headers: adminHeaders()
   });
@@ -198,7 +201,7 @@ async function deleteEvent(eventId) {
 async function deleteBadge(badgeId) {
   if (!confirm("Excluir essa insígnia?")) return;
 
-  await fetch("/admin/badges/" + encodeURIComponent(badgeId), {
+  await fetch(API + "/admin/badges/" + encodeURIComponent(badgeId), {
     method: "DELETE",
     headers: adminHeaders()
   });

@@ -1,3 +1,5 @@
+const API = "http://servidor-dashboard-race-low-poly-production.up.railway.app/";
+
 let token = localStorage.getItem("hubToken") || "";
 let badgeList = [];
 
@@ -24,7 +26,7 @@ function formatTotalTime(time) {
 }
 
 async function loadBadgesPublic() {
-  const res = await fetch("/badges");
+  const res = await fetch(API + "/badges");
   badgeList = await res.json();
 }
 
@@ -38,7 +40,7 @@ async function register() {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
 
-  const res = await fetch("/auth/register", {
+  const res = await fetch(API + "/auth/register", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({ username, password })
@@ -52,7 +54,7 @@ async function login() {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
 
-  const res = await fetch("/auth/login", {
+  const res = await fetch(API + "/auth/login", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({ username, password })
@@ -73,7 +75,7 @@ async function login() {
 }
 
 async function logout() {
-  await fetch("/auth/logout", {
+  await fetch(API + "/auth/logout", {
     method: "POST",
     headers: authHeaders()
   });
@@ -88,7 +90,7 @@ async function logout() {
 async function loadMyProfile() {
   if (!token) return;
 
-  const res = await fetch("/profile/me", {
+  const res = await fetch(API + "/profile/me", {
     headers: authHeaders()
   });
 
@@ -134,7 +136,7 @@ async function confirmLink() {
     return;
   }
 
-  const res = await fetch("/link/confirm", {
+  const res = await fetch(API + "/link/confirm", {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ code })
@@ -152,7 +154,7 @@ async function confirmLink() {
 }
 
 async function loadAvailableCodes() {
-  const res = await fetch("/rewards/available", {
+  const res = await fetch(API + "/rewards/available", {
     headers: authHeaders()
   });
 
@@ -185,7 +187,7 @@ async function loadAvailableCodes() {
 }
 
 async function redeemReward(code) {
-  const res = await fetch("/rewards/redeem", {
+  const res = await fetch(API + "/rewards/redeem", {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ code })
@@ -217,7 +219,7 @@ function renderBadges(badges) {
 }
 
 async function loadBestTimes() {
-  const res = await fetch("/dashboard/best-times");
+  const res = await fetch(API + "/dashboard/best-times");
   const data = await res.json();
   const el = document.getElementById("bestTimes");
   el.innerHTML = "";
@@ -233,7 +235,7 @@ async function loadBestTimes() {
 }
 
 async function loadTopLevel() {
-  const res = await fetch("/dashboard/top-level");
+  const res = await fetch(API + "/dashboard/top-level");
   const data = await res.json();
   const el = document.getElementById("topLevel");
   el.innerHTML = "";
@@ -249,7 +251,7 @@ async function loadTopLevel() {
 }
 
 async function loadPlaytime() {
-  const res = await fetch("/dashboard/most-playtime");
+  const res = await fetch(API + "/dashboard/most-playtime");
   const data = await res.json();
   const el = document.getElementById("playtime");
   el.innerHTML = "";
@@ -260,7 +262,7 @@ async function loadPlaytime() {
 }
 
 async function loadWins() {
-  const res = await fetch("/dashboard/most-wins");
+  const res = await fetch(API + "/dashboard/most-wins");
   const data = await res.json();
   const el = document.getElementById("wins");
   el.innerHTML = "";

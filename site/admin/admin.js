@@ -1,6 +1,10 @@
 
 const API = "https://servidor-dashboard-race-low-poly.onrender.com";
 
+function apiUrl(route) {
+  return API + route;
+}
+
 let adminToken = localStorage.getItem("adminToken") || "";
 
 function adminHeaders() {

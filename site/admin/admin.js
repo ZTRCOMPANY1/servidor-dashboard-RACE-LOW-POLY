@@ -14,13 +14,6 @@ function adminHeaders() {
   };
 }
 
-function adminHeaders() {
-  return {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer " + adminToken
-  };
-}
-
 async function adminLogin() {
   const username = document.getElementById("adminUser").value.trim();
   const password = document.getElementById("adminPass").value;

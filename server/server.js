@@ -674,7 +674,8 @@ app.get("/dashboard/most-wins", (req, res) => {
   res.json(ranking);
 });
 
-app.listen(PORT, () => {
-  console.log("Servidor online em http://localhost:" + PORT);
-  console.log("Painel admin em http://localhost:" + PORT + "/admin");
+const port = process.env.PORT || 3000;
+
+app.listen(port, () => {
+  console.log("Servidor online na porta " + port);
 });

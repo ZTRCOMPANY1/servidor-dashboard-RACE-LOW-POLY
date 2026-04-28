@@ -1,5 +1,5 @@
 
-const API = "http://servidor-dashboard-race-low-poly-production.up.railway.app/";
+const API = "https://servidor-dashboard-race-low-poly.onrender.com";
 
 let adminToken = localStorage.getItem("adminToken") || "";
 

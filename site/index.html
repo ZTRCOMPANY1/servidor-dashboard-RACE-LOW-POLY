@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Racing Game Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>� Racing Game Hub</h1>
+  <p>Hub oficial do jogador</p>
+</header>
+
+<main class="container">
+
+  <section class="card" id="authCard">
+    <h2>Conta do jogador</h2>
+    <input id="username" placeholder="Usuário">
+    <input id="password" placeholder="Senha" type="password">
+    <button onclick="register()">Criar conta</button>
+    <button onclick="login()">Entrar</button>
+    <p id="authStatus"></p>
+  </section>
+
+  <section class="card" id="profileCard" style="display:none;">
+    <h2>Meu perfil</h2>
+
+    <p id="profileUser"></p>
+    <p id="profilePlayer"></p>
+    <p id="profileStats"></p>
+
+    <div id="linkArea">
+      <h3>Vincular conta ao jogo</h3>
+      <input id="linkCodeInput" placeholder="Digite o código LINK-XXXXXX">
+      <button onclick="confirmLink()">Vincular</button>
+      <p id="linkStatus"></p>
+    </div>
+
+    <div id="rewardArea" style="display:none;">
+      <h3>Códigos disponíveis</h3>
+      <div id="availableCodes"></div>
+
+      <h3>Minhas insígnias</h3>
+      <div id="badges"></div>
+    </div>
+
+    <button onclick="logout()">Sair</button>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2>Melhor tempo por mapa</h2>
+      <div id="bestTimes">Carregando...</div>
+    </div>
+
+    <div class="card">
+      <h2>Maior nível e rank</h2>
+      <div id="topLevel">Carregando...</div>
+    </div>
+
+    <div class="card">
+      <h2>Mais tempo jogado</h2>
+      <div id="playtime">Carregando...</div>
+    </div>
+
+    <div class="card">
+      <h2>Mais corridas ganhas</h2>
+      <div id="wins">Carregando...</div>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

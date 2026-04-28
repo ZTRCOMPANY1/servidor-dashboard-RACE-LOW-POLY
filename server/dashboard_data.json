@@ -1,0 +1,136 @@
+{
+  "players": [
+    {
+      "playerName": "ztrem",
+      "level": 10,
+      "rank": "Profissional",
+      "xp": 4550,
+      "totalPlayTime": 722.3330688476562,
+      "distanceDrivenKm": 0,
+      "racesWon": 14,
+      "racesPlayed": 14,
+      "achievements": [
+        "WIN_10_RACES"
+      ],
+      "badges": [
+        "BADGE_WIN_3",
+        "BADGE_WIN_10"
+      ],
+      "matchHistory": [
+        {
+          "trackName": "MAPAPRIN",
+          "position": 1,
+          "raceTime": 20.549013137817383,
+          "date": "28/04/2026 15:13"
+        },
+        {
+          "trackName": "MAPAPRIN",
+          "position": 1,
+          "raceTime": 21.78146743774414,
+          "date": "28/04/2026 15:12"
+        },
+        {
+          "trackName": "MAPAPRIN",
+          "position": 1,
+          "raceTime": 19.510618209838867,
+          "date": "28/04/2026 15:12"
+        },
+        {
+          "trackName": "MAPAPRIN",
+          "position": 1,
+          "raceTime": 18.69613265991211,
+          "date": "28/04/2026 00:51"
+        },
+        {
+          "trackName": "MAPAPRIN",
+          "position": 1,
+          "raceTime": 29.06493377685547,
+          "date": "28/04/2026 00:12"
+        },
+        {
+          "trackName": "MAPAPRIN",
+          "position": 1,
+          "raceTime": 19.111486434936523,
+          "date": "28/04/2026 00:12"
+        },
+        {
+          "trackName": "MAPAPRIN",
+          "position": 1,
+          "raceTime": 20.359270095825195,
+          "date": "28/04/2026 00:10"
+        },
+        {
+          "trackName": "MAPAPRIN",
+          "position": 1,
+          "raceTime": 19.775043487548828,
+          "date": "28/04/2026 00:09"
+        },
+        {
+          "trackName": "MAPAPRIN",
+          "position": 1,
+          "raceTime": 18.940021514892578,
+          "date": "28/04/2026 00:00"
+        },
+        {
+          "trackName": "MAPAPRIN",
+          "position": 1,
+          "raceTime": 19.164133071899414,
+          "date": "28/04/2026 00:00"
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "ztrem",
+      "passwordHash": "$2a$10$zC68XEqE.q7W50U1Id4bfej7be4VCf31ymL1FRgTj0CoIBsLcVlNa",
+      "linkedPlayerName": "ztrem",
+      "createdAt": "2026-04-28T14:11:06.178Z"
+    }
+  ],
+  "sessions": [
+    {
+      "username": "ztrem",
+      "token": "36bbedf0fce5b22209584b89a2630cfb5a062eb7729899a848ed4ff817f89632",
+      "createdAt": "2026-04-28T14:11:08.666Z",
+      "expiresAt": "2026-05-05T14:11:08.666Z"
+    }
+  ],
+  "linkCodes": [
+    {
+      "code": "LINK-F1F657",
+      "playerName": "ztrem",
+      "used": true,
+      "createdAt": "2026-04-28T14:12:37.844Z",
+      "expiresAt": "2026-04-28T14:22:37.844Z",
+      "usedAt": "2026-04-28T14:12:52.428Z",
+      "usedBy": "ztrem"
+    }
+  ],
+  "redeemCodes": [
+    {
+      "code": "EVT-F92D4F",
+      "playerName": "ztrem",
+      "eventId": "EVENT_WIN_10",
+      "title": "Desafio das 10 Vitórias",
+      "description": "Ganhe 10 corridas para desbloquear uma insígnia.",
+      "rewardBadge": "BADGE_WIN_10",
+      "used": true,
+      "createdAt": "2026-04-28T18:12:10.958Z",
+      "usedAt": "2026-04-28T18:14:19.941Z"
+    },
+    {
+      "code": "EVT-92AA04",
+      "playerName": "ztrem",
+      "eventId": "BADGE_WIN_3",
+      "title": "24234",
+      "description": "2424",
+      "rewardBadge": "BADGE_WIN_3",
+      "used": true,
+      "createdAt": "2026-04-28T18:12:10.958Z",
+      "usedAt": "2026-04-28T18:14:18.211Z"
+    }
+  ],
+  "badges": [],
+  "events": []
+}

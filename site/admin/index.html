@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin - Racing Hub</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<header>
+  <h1>⚙️ Painel Admin</h1>
+  <p>Criar insígnias e eventos do jogo</p>
+</header>
+
+<main class="container">
+
+  <section class="card" id="loginCard">
+    <h2>Login Admin</h2>
+    <input id="adminUser" placeholder="Usuário admin">
+    <input id="adminPass" placeholder="Senha admin" type="password">
+    <button onclick="adminLogin()">Entrar</button>
+    <p id="loginStatus"></p>
+  </section>
+
+  <section id="adminPanel" style="display:none;">
+
+    <div class="grid">
+      <section class="card">
+        <h2>Criar Insígnia</h2>
+
+        <input id="badgeId" placeholder="ID: BADGE_WIN_50">
+        <input id="badgeName" placeholder="Nome: 50 Vitórias">
+        <input id="badgeIcon" placeholder="Ícone: �">
+        <input id="badgeDesc" placeholder="Descrição">
+
+        <button onclick="createBadge()">Criar Insígnia</button>
+        <p id="badgeStatus"></p>
+      </section>
+
+      <section class="card">
+        <h2>Criar Evento</h2>
+
+        <input id="eventId" placeholder="ID: EVENT_WIN_50">
+        <input id="eventTitle" placeholder="Título">
+        <input id="eventDesc" placeholder="Descrição">
+
+        <select id="requirementType">
+          <option value="RACES_WON">Corridas ganhas</option>
+          <option value="RACES_PLAYED">Corridas jogadas</option>
+          <option value="PLAY_TIME">Tempo jogado em segundos</option>
+          <option value="DISTANCE_KM">Distância em KM</option>
+          <option value="LEVEL">Nível</option>
+          <option value="XP">XP</option>
+        </select>
+
+        <input id="requirementValue" type="number" placeholder="Valor necessário">
+        <input id="durationDays" type="number" placeholder="Validade em dias. Ex: 7">
+
+        <select id="rewardBadge"></select>
+
+        <label>
+          <input id="eventActive" type="checkbox" checked>
+          Ativo
+        </label>
+
+        <button onclick="createGameEvent()">Criar Evento</button>
+        <p id="eventStatus"></p>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>Insígnias existentes</h2>
+      <div id="badgeList"></div>
+    </section>
+
+    <section class="card">
+      <h2>Eventos existentes</h2>
+      <div id="eventList"></div>
+    </section>
+
+  </section>
+
+</main>
+
+<script src="admin.js"></script>
+</body>
+</html>

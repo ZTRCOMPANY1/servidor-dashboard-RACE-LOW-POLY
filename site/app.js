@@ -29,9 +29,28 @@ function formatTotalTime(time) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
+async function safeJson(res) {
+  const text = await res.text();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error("Resposta não é JSON:", text);
+    return { error: "Servidor retornou resposta inválida." };
+  }
+}
+
 async function loadBadgesPublic() {
   const res = await fetch(apiUrl("/badges"));
-  badgeList = await res.json();
+  const data = await safeJson(res);
+
+  if (!res.ok) {
+    console.error(data.error);
+    badgeList = [];
+    return;
+  }
+
+  badgeList = data;
 }
 
 function badgeName(id) {
@@ -44,13 +63,13 @@ async function register() {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
 
-  const res = await fetch(apiUrl("/auth/register", {
+  const res = await fetch(apiUrl("/auth/register"), {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({ username, password })
-  }));
+  });
 
-  const data = await res.json();
+  const data = await safeJson(res);
   document.getElementById("authStatus").innerText = data.message || data.error;
 }
 
@@ -58,16 +77,16 @@ async function login() {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value;
 
-  const res = await fetch(apiUrl("/auth/login", {
+  const res = await fetch(apiUrl("/auth/login"), {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({ username, password })
-  }));
+  });
 
-  const data = await res.json();
+  const data = await safeJson(res);
 
   if (!res.ok) {
-    document.getElementById("authStatus").innerText = data.error;
+    document.getElementById("authStatus").innerText = data.error || "Erro ao fazer login.";
     return;
   }
 
@@ -79,10 +98,10 @@ async function login() {
 }
 
 async function logout() {
-  await fetch(apiUrl("/auth/logout", {
+  await fetch(apiUrl("/auth/logout"), {
     method: "POST",
     headers: authHeaders()
-  }));
+  });
 
   token = "";
   localStorage.removeItem("hubToken");
@@ -94,9 +113,10 @@ async function logout() {
 async function loadMyProfile() {
   if (!token) return;
 
-  const res = await fetch(apiUrl("/profile/me", {
+  const res = await fetch(apiUrl("/profile/me"), {
+    method: "GET",
     headers: authHeaders()
-  }));
+  });
 
   if (!res.ok) {
     token = "";
@@ -104,7 +124,7 @@ async function loadMyProfile() {
     return;
   }
 
-  const data = await res.json();
+  const data = await safeJson(res);
 
   document.getElementById("authCard").style.display = "none";
   document.getElementById("profileCard").style.display = "block";
@@ -140,16 +160,16 @@ async function confirmLink() {
     return;
   }
 
-  const res = await fetch(apiUrl("/link/confirm", {
+  const res = await fetch(apiUrl("/link/confirm"), {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ code })
-  }));
+  });
 
-  const data = await res.json();
+  const data = await safeJson(res);
 
   if (!res.ok) {
-    document.getElementById("linkStatus").innerText = data.error;
+    document.getElementById("linkStatus").innerText = data.error || "Erro ao vincular.";
     return;
   }
 
@@ -158,9 +178,10 @@ async function confirmLink() {
 }
 
 async function loadAvailableCodes() {
-  const res = await fetch(apiUrl("/rewards/available", {
+  const res = await fetch(apiUrl("/rewards/available"), {
+    method: "GET",
     headers: authHeaders()
-  }));
+  });
 
   const el = document.getElementById("availableCodes");
   el.innerHTML = "";
@@ -170,7 +191,7 @@ async function loadAvailableCodes() {
     return;
   }
 
-  const codes = await res.json();
+  const codes = await safeJson(res);
 
   if (codes.length === 0) {
     el.innerHTML = "Nenhum código disponível.";
@@ -191,16 +212,16 @@ async function loadAvailableCodes() {
 }
 
 async function redeemReward(code) {
-  const res = await fetch(apiUrl("/rewards/redeem", {
+  const res = await fetch(apiUrl("/rewards/redeem"), {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ code })
-  }));
+  });
 
-  const data = await res.json();
+  const data = await safeJson(res);
 
   if (!res.ok) {
-    alert(data.error);
+    alert(data.error || "Erro ao resgatar.");
     return;
   }
 
@@ -224,11 +245,12 @@ function renderBadges(badges) {
 
 async function loadBestTimes() {
   const res = await fetch(apiUrl("/dashboard/best-times"));
-  const data = await res.json();
+  const data = await safeJson(res);
+
   const el = document.getElementById("bestTimes");
   el.innerHTML = "";
 
-  if (data.length === 0) {
+  if (!res.ok || data.length === 0) {
     el.innerHTML = "Nenhum tempo registrado.";
     return;
   }
@@ -240,11 +262,12 @@ async function loadBestTimes() {
 
 async function loadTopLevel() {
   const res = await fetch(apiUrl("/dashboard/top-level"));
-  const data = await res.json();
+  const data = await safeJson(res);
+
   const el = document.getElementById("topLevel");
   el.innerHTML = "";
 
-  if (data.length === 0) {
+  if (!res.ok || data.length === 0) {
     el.innerHTML = "Nenhum jogador registrado.";
     return;
   }
@@ -256,9 +279,15 @@ async function loadTopLevel() {
 
 async function loadPlaytime() {
   const res = await fetch(apiUrl("/dashboard/most-playtime"));
-  const data = await res.json();
+  const data = await safeJson(res);
+
   const el = document.getElementById("playtime");
   el.innerHTML = "";
+
+  if (!res.ok || data.length === 0) {
+    el.innerHTML = "Nenhum jogador registrado.";
+    return;
+  }
 
   data.forEach((p, i) => {
     el.innerHTML += `<div class="item">#${i + 1} ${p.playerName} — ${formatTotalTime(p.totalPlayTime)}</div>`;
@@ -267,9 +296,15 @@ async function loadPlaytime() {
 
 async function loadWins() {
   const res = await fetch(apiUrl("/dashboard/most-wins"));
-  const data = await res.json();
+  const data = await safeJson(res);
+
   const el = document.getElementById("wins");
   el.innerHTML = "";
+
+  if (!res.ok || data.length === 0) {
+    el.innerHTML = "Nenhum jogador registrado.";
+    return;
+  }
 
   data.forEach((p, i) => {
     el.innerHTML += `<div class="item">#${i + 1} ${p.playerName} — ${p.racesWon} vitórias / ${p.racesPlayed} corridas</div>`;
@@ -286,6 +321,7 @@ async function init() {
 }
 
 init();
+
 setInterval(() => {
   loadBestTimes();
   loadTopLevel();

@@ -14,8 +14,6 @@ function adminHeaders() {
   };
 }
 
-let adminToken = localStorage.getItem("adminToken") || "";
-
 function adminHeaders() {
   return {
     "Content-Type": "application/json",

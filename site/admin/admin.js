@@ -220,4 +220,31 @@ async function deleteBadge(badgeId) {
   loadAdminData();
 }
 
+
+async function resetDashboards() {
+  const confirmReset = confirm(
+    "Tem certeza que deseja resetar todos os dashboards? Isso vai apagar tempos, vitórias, XP e histórico."
+  );
+
+  if (!confirmReset) return;
+
+  const confirmAgain = confirm(
+    "Confirma mesmo? Essa ação não pode ser desfeita."
+  );
+
+  if (!confirmAgain) return;
+
+  const res = await fetch(apiUrl("/admin/reset-dashboards"), {
+    method: "POST",
+    headers: adminHeaders()
+  });
+
+  const data = await res.json();
+
+  document.getElementById("resetStatus").innerText =
+    data.message || data.error || "Finalizado.";
+
+  loadAdminData();
+}
+
 loadAdminData();

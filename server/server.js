@@ -943,6 +943,47 @@ app.get("/dashboard/most-wins", async (req, res) => {
   res.json(ranking);
 });
 
+app.post("/admin/reset-dashboards", requireAdmin, async (req, res) => {
+  try {
+    const players = await pool.query("SELECT player_name, data FROM players");
+
+    for (const row of players.rows) {
+      const player = row.data;
+
+      player.level = 1;
+      player.rank = "Novato";
+      player.xp = 0;
+      player.totalPlayTime = 0;
+      player.distanceDrivenKm = 0;
+      player.racesWon = 0;
+      player.racesPlayed = 0;
+      player.matchHistory = [];
+
+      await pool.query(
+        `
+        UPDATE players
+        SET data = $1, updated_at = NOW()
+        WHERE player_name = $2
+        `,
+        [player, row.player_name]
+      );
+    }
+
+    await pool.query("DELETE FROM redeem_codes");
+
+    res.json({
+      success: true,
+      message: "Dashboards resetados com sucesso."
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: "Erro ao resetar dashboards."
+    });
+  }
+});
+
+
 initDatabase()
   .then(() => {
     app.listen(PORT, () => {

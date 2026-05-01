@@ -1,4 +1,4 @@
-const API = "https://api.ztrnews.site/";
+const API = "https://api.ztrnews.site";
 
 let adminToken = localStorage.getItem("adminToken") || "";
 

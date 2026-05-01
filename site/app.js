@@ -1,4 +1,4 @@
-const API = "https://servidor-dashboard-race-low-poly.onrender.com";
+const API = "https://dashboard.ztrnews.site";
 
 function apiUrl(route) {
   return API + route;

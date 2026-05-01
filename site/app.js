@@ -1,4 +1,4 @@
-const API = "https://dashboard.ztrnews.site";
+const API = "https://api.ztrnews.site/";
 
 function apiUrl(route) {
   return API + route;
